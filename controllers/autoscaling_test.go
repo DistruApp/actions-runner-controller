@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/summerwind/actions-runner-controller/api/v1alpha1"
 	"github.com/summerwind/actions-runner-controller/github"
@@ -145,6 +146,7 @@ func TestDetermineDesiredReplicas_RepositoryRunner(t *testing.T) {
 		},
 	}
 
+	syncPeriod := 1 * time.Second
 	for i := range testcases {
 		tc := testcases[i]
 
@@ -165,6 +167,7 @@ func TestDetermineDesiredReplicas_RepositoryRunner(t *testing.T) {
 				Log:          log,
 				GitHubClient: client,
 				Scheme:       scheme,
+				SyncPeriod:   &syncPeriod,
 			}
 
 			rd := v1alpha1.RunnerDeployment{
@@ -371,11 +374,13 @@ func TestDetermineDesiredReplicas_OrganizationalRunner(t *testing.T) {
 			server := fake.NewServer(fake.WithListRepositoryWorkflowRunsResponse(200, tc.workflowRuns), fake.WithListWorkflowJobsResponse(200, tc.workflowJobs))
 			defer server.Close()
 			client := newGithubClient(server)
+			syncPeriod := 1 * time.Second
 
 			h := &HorizontalRunnerAutoscalerReconciler{
 				Log:          log,
 				Scheme:       scheme,
 				GitHubClient: client,
+				SyncPeriod:   &syncPeriod,
 			}
 
 			rd := v1alpha1.RunnerDeployment{
