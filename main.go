@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -94,6 +95,8 @@ func main() {
 
 	ctrl.SetLogger(logger)
 
+	ctx := context.Background()
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
@@ -115,7 +118,7 @@ func main() {
 		DockerImage:  dockerImage,
 	}
 
-	if err = runnerReconciler.SetupWithManager(mgr); err != nil {
+	if err = runnerReconciler.SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Runner")
 		os.Exit(1)
 	}
@@ -127,7 +130,7 @@ func main() {
 		GitHubClient: ghClient,
 	}
 
-	if err = runnerSetReconciler.SetupWithManager(mgr); err != nil {
+	if err = runnerSetReconciler.SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RunnerReplicaSet")
 		os.Exit(1)
 	}
@@ -138,7 +141,7 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}
 
-	if err = runnerDeploymentReconciler.SetupWithManager(mgr); err != nil {
+	if err = runnerDeploymentReconciler.SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RunnerDeployment")
 		os.Exit(1)
 	}
@@ -151,20 +154,20 @@ func main() {
 		SyncPeriod:   &syncPeriod,
 	}
 
-	if err = horizontalRunnerAutoscaler.SetupWithManager(mgr); err != nil {
+	if err = horizontalRunnerAutoscaler.SetupWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "HorizontalRunnerAutoscaler")
 		os.Exit(1)
 	}
 
-	if err = (&actionsv1alpha1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = (&actionsv1alpha1.Runner{}).SetupWebhookWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 		os.Exit(1)
 	}
-	if err = (&actionsv1alpha1.RunnerDeployment{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = (&actionsv1alpha1.RunnerDeployment{}).SetupWebhookWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "RunnerDeployment")
 		os.Exit(1)
 	}
-	if err = (&actionsv1alpha1.RunnerReplicaSet{}).SetupWebhookWithManager(mgr); err != nil {
+	if err = (&actionsv1alpha1.RunnerReplicaSet{}).SetupWebhookWithManager(ctx, mgr); err != nil {
 		setupLog.Error(err, "unable to create webhook", "webhook", "RunnerReplicaSet")
 		os.Exit(1)
 	}

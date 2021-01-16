@@ -159,7 +159,10 @@ func TestDetermineDesiredReplicas_RepositoryRunner(t *testing.T) {
 		_ = v1alpha1.AddToScheme(scheme)
 
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			server := fake.NewServer(fake.WithListRepositoryWorkflowRunsResponse(200, tc.workflowRuns), fake.WithListWorkflowJobsResponse(200, tc.workflowJobs))
+			server := fake.NewServer(
+				fake.WithListRepositoryWorkflowRunsResponse(200, tc.workflowRuns),
+				fake.WithListWorkflowJobsResponse(200, tc.workflowJobs),
+			)
 			defer server.Close()
 			client := newGithubClient(server)
 
@@ -236,6 +239,7 @@ func TestDetermineDesiredReplicas_OrganizationalRunner(t *testing.T) {
 		sTime        *metav1.Time
 		workflowRuns string
 		workflowJobs map[int]string
+		enabledRepos string
 		want         int
 		err          string
 	}{
@@ -334,12 +338,14 @@ func TestDetermineDesiredReplicas_OrganizationalRunner(t *testing.T) {
 			want:         3,
 		},
 		// org runner, 1 demanded, min at 1, no repos
+		//err:          "validating autoscaling metrics: spec.autoscaling.metrics[].repositoryNames is required and must have one more more entries for organizational runner deployment",
 		{
 			org:          "test",
 			min:          intPtr(1),
 			max:          intPtr(3),
 			workflowRuns: `{"total_count": 2, "workflow_runs":[{"status":"in_progress"}, {"status":"completed"}]}"`,
-			err:          "validating autoscaling metrics: spec.autoscaling.metrics[].repositoryNames is required and must have one more more entries for organizational runner deployment",
+			enabledRepos: `{"total_count": 1, "repositories": [{"id": 1296269, "name": "valid", "full_name": "test/valid", "disabled": false, "archived": false, "pushed_at": "2011-01-26T19:06:43Z"}]}`,
+			want:         1,
 		},
 
 		// Job-level autoscaling
@@ -371,7 +377,11 @@ func TestDetermineDesiredReplicas_OrganizationalRunner(t *testing.T) {
 		_ = v1alpha1.AddToScheme(scheme)
 
 		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			server := fake.NewServer(fake.WithListRepositoryWorkflowRunsResponse(200, tc.workflowRuns), fake.WithListWorkflowJobsResponse(200, tc.workflowJobs))
+			server := fake.NewServer(
+				fake.WithListRepositoryWorkflowRunsResponse(200, tc.workflowRuns),
+				fake.WithListWorkflowJobsResponse(200, tc.workflowJobs),
+				fake.WithListEnabledReposInOrgResponse(200, tc.enabledRepos),
+			)
 			defer server.Close()
 			client := newGithubClient(server)
 			syncPeriod := 1 * time.Second

@@ -50,8 +50,7 @@ type RunnerReplicaSetReconciler struct {
 // +kubebuilder:rbac:groups=actions.summerwind.dev,resources=runners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
-func (r *RunnerReplicaSetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *RunnerReplicaSetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("runnerreplicaset", req.NamespacedName)
 
 	var rs v1alpha1.RunnerReplicaSet
@@ -178,7 +177,7 @@ func (r *RunnerReplicaSetReconciler) newRunner(rs v1alpha1.RunnerReplicaSet) (v1
 	return runner, nil
 }
 
-func (r *RunnerReplicaSetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *RunnerReplicaSetReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorderFor("runnerreplicaset-controller")
 
 	return ctrl.NewControllerManagedBy(mgr).

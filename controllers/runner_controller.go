@@ -61,8 +61,7 @@ type RunnerReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=pods/finalizers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
-func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("runner", req.NamespacedName)
 
 	var runner v1alpha1.Runner
@@ -574,7 +573,7 @@ func (r *RunnerReconciler) newPod(runner v1alpha1.Runner) (corev1.Pod, error) {
 	return pod, nil
 }
 
-func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *RunnerReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	r.Recorder = mgr.GetEventRecorderFor("runner-controller")
 
 	return ctrl.NewControllerManagedBy(mgr).

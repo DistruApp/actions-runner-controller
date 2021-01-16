@@ -25,11 +25,9 @@ import (
 // * stopping the 'RunnerDeploymentReconciler" after the test ends
 // Call this function at the start of each of your tests.
 func SetupDeploymentTest(ctx context.Context) *corev1.Namespace {
-	var stopCh chan struct{}
 	ns := &corev1.Namespace{}
 
 	BeforeEach(func() {
-		stopCh = make(chan struct{})
 		*ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{Name: "testns-" + randStringRunes(5)},
 		}
@@ -37,7 +35,7 @@ func SetupDeploymentTest(ctx context.Context) *corev1.Namespace {
 		err := k8sClient.Create(ctx, ns)
 		Expect(err).NotTo(HaveOccurred(), "failed to create test namespace")
 
-		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{MetricsBindAddress: ":8082"})
 		Expect(err).NotTo(HaveOccurred(), "failed to create manager")
 
 		controller := &RunnerDeploymentReconciler{
@@ -46,20 +44,18 @@ func SetupDeploymentTest(ctx context.Context) *corev1.Namespace {
 			Log:      logf.Log,
 			Recorder: mgr.GetEventRecorderFor("runnerreplicaset-controller"),
 		}
-		err = controller.SetupWithManager(mgr)
+		err = controller.SetupWithManager(ctx, mgr)
 		Expect(err).NotTo(HaveOccurred(), "failed to setup controller")
 
 		go func() {
 			defer GinkgoRecover()
 
-			err := mgr.Start(stopCh)
+			err := mgr.Start(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to start manager")
 		}()
 	})
 
 	AfterEach(func() {
-		close(stopCh)
-
 		err := k8sClient.Delete(ctx, ns)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete test namespace")
 	})

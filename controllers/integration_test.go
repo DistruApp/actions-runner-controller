@@ -37,7 +37,6 @@ var (
 // * stopping all the reconcilers after the test ends
 // Call this function at the start of each of your tests.
 func SetupIntegrationTest(ctx context.Context) *testEnvironment {
-	var stopCh chan struct{}
 	ns := &corev1.Namespace{}
 
 	responses := &fake.FixedResponses{}
@@ -48,7 +47,6 @@ func SetupIntegrationTest(ctx context.Context) *testEnvironment {
 	fakeGithubServer := fake.NewServer(fake.WithFixedResponses(responses))
 
 	BeforeEach(func() {
-		stopCh = make(chan struct{})
 		*ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{Name: "testns-" + randStringRunes(5)},
 		}
@@ -56,7 +54,7 @@ func SetupIntegrationTest(ctx context.Context) *testEnvironment {
 		err := k8sClient.Create(ctx, ns)
 		Expect(err).NotTo(HaveOccurred(), "failed to create test namespace")
 
-		mgr, err := ctrl.NewManager(cfg, ctrl.Options{})
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{MetricsBindAddress: ":8081"})
 		Expect(err).NotTo(HaveOccurred(), "failed to create manager")
 
 		runnersList = fake.NewRunnersList()
@@ -70,7 +68,7 @@ func SetupIntegrationTest(ctx context.Context) *testEnvironment {
 			Recorder:     mgr.GetEventRecorderFor("runnerreplicaset-controller"),
 			GitHubClient: ghClient,
 		}
-		err = replicasetController.SetupWithManager(mgr)
+		err = replicasetController.SetupWithManager(ctx, mgr)
 		Expect(err).NotTo(HaveOccurred(), "failed to setup controller")
 
 		deploymentsController := &RunnerDeploymentReconciler{
@@ -79,7 +77,7 @@ func SetupIntegrationTest(ctx context.Context) *testEnvironment {
 			Log:      logf.Log,
 			Recorder: mgr.GetEventRecorderFor("runnerdeployment-controller"),
 		}
-		err = deploymentsController.SetupWithManager(mgr)
+		err = deploymentsController.SetupWithManager(ctx, mgr)
 		Expect(err).NotTo(HaveOccurred(), "failed to setup controller")
 
 		client := newGithubClient(fakeGithubServer)
@@ -91,20 +89,18 @@ func SetupIntegrationTest(ctx context.Context) *testEnvironment {
 			GitHubClient: client,
 			Recorder:     mgr.GetEventRecorderFor("horizontalrunnerautoscaler-controller"),
 		}
-		err = autoscalerController.SetupWithManager(mgr)
+		err = autoscalerController.SetupWithManager(ctx, mgr)
 		Expect(err).NotTo(HaveOccurred(), "failed to setup controller")
 
 		go func() {
 			defer GinkgoRecover()
 
-			err := mgr.Start(stopCh)
+			err := mgr.Start(ctx)
 			Expect(err).NotTo(HaveOccurred(), "failed to start manager")
 		}()
 	})
 
 	AfterEach(func() {
-		close(stopCh)
-
 		fakeGithubServer.Close()
 
 		err := k8sClient.Delete(ctx, ns)

@@ -17,18 +17,19 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 // log is for logging in this package.
 var runenrDeploymentLog = logf.Log.WithName("runnerdeployment-resource")
 
-func (r *RunnerDeployment) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func (r *RunnerDeployment) SetupWebhookWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
 		Complete()

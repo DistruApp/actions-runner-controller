@@ -150,6 +150,9 @@ func NewServer(opts ...Option) *httptest.Server {
 
 		// For auto-scaling based on the number of queued(pending) workflow jobs
 		"/repos/test/valid/actions/runs/": config.FixedResponses.ListWorkflowJobs,
+
+		// For auto-scaling based on the number of organization-wide queued(pending) workflow jobs
+		"/orgs/test/actions/permissions/repositories": config.FixedResponses.ListEnabledReposInOrg,
 	}
 
 	mux := http.NewServeMux()
