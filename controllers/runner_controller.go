@@ -19,7 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/summerwind/actions-runner-controller/hash"
+	"github.com/distruapp/actions-runner-controller/hash"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -32,8 +32,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/summerwind/actions-runner-controller/api/v1alpha1"
-	"github.com/summerwind/actions-runner-controller/github"
+	"github.com/distruapp/actions-runner-controller/api/v1alpha1"
+	"github.com/distruapp/actions-runner-controller/github"
 )
 
 const (
@@ -390,7 +390,7 @@ func (r *RunnerReconciler) newPod(runner v1alpha1.Runner) (corev1.Pod, error) {
 	//     A registered runner's session and the a registration token seem to have two different and independent
 	//     lifecycles.
 	//
-	//     See https://github.com/summerwind/actions-runner-controller/issues/143 for more context.
+	//     See https://github.com/distruapp/actions-runner-controller/issues/143 for more context.
 	labels[LabelKeyPodTemplateHash] = hash.FNVHashStringObjects(
 		filterLabels(runner.Labels, LabelKeyRunnerTemplateHash),
 		runner.Annotations,

@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/summerwind/actions-runner-controller/github"
+	"github.com/distruapp/actions-runner-controller/github"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
@@ -32,7 +32,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/summerwind/actions-runner-controller/api/v1alpha1"
+	"github.com/distruapp/actions-runner-controller/api/v1alpha1"
 )
 
 const (

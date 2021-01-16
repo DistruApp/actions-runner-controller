@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	actionsv1alpha1 "github.com/summerwind/actions-runner-controller/api/v1alpha1"
+	actionsv1alpha1 "github.com/distruapp/actions-runner-controller/api/v1alpha1"
 )
 
 // SetupDeploymentTest will set up a testing environment.

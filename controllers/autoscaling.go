@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/summerwind/actions-runner-controller/api/v1alpha1"
+	"github.com/distruapp/actions-runner-controller/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

@@ -23,10 +23,10 @@ import (
 	"os"
 	"time"
 
+	actionsv1alpha1 "github.com/distruapp/actions-runner-controller/api/v1alpha1"
+	"github.com/distruapp/actions-runner-controller/controllers"
+	"github.com/distruapp/actions-runner-controller/github"
 	"github.com/kelseyhightower/envconfig"
-	actionsv1alpha1 "github.com/summerwind/actions-runner-controller/api/v1alpha1"
-	"github.com/summerwind/actions-runner-controller/controllers"
-	"github.com/summerwind/actions-runner-controller/github"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
