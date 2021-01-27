@@ -479,8 +479,9 @@ func (r *RunnerReconciler) newPod(runner v1alpha1.Runner) (corev1.Pod, error) {
 			},
 		}...)
 		pod.Spec.Containers = append(pod.Spec.Containers, corev1.Container{
-			Name:  "docker",
-			Image: r.DockerImage,
+			Name:            "docker",
+			Image:           r.DockerImage,
+			ImagePullPolicy: corev1.PullAlways,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "work",
