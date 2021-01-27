@@ -6,6 +6,7 @@ YAML_DROP_PREFIX=spec.validation.openAPIV3Schema.properties.spec.properties
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
+BUILDX_BUILDER ?= container-builder
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -105,8 +106,8 @@ docker-push:
 
 docker-buildx:
 	export DOCKER_CLI_EXPERIMENTAL=enabled
-	@if ! docker buildx ls | grep -q container-builder; then\
-		docker buildx create --platform ${PLATFORMS} --name container-builder --use;\
+	@if ! docker buildx ls | grep -q $(BUILDX_BUILDER); then\
+		docker buildx create --platform ${PLATFORMS} --name $(BUILDX_BUILDER) --use;\
 	fi
 	docker buildx build --platform ${PLATFORMS} \
 		--build-arg RUNNER_VERSION=${RUNNER_VERSION} \
