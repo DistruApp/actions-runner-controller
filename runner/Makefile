@@ -5,6 +5,7 @@ TARGET_PLATFORM ?= $(shell arch)
 
 RUNNER_VERSION ?= 2.280.3
 DOCKER_VERSION ?= 20.10.8
+DOCKER_BUILDX_VERSION ?= 0.6.3
 
 # default list of platforms for which multiarch image is built
 ifeq (${PLATFORMS}, )
@@ -25,7 +26,7 @@ endif
 
 docker-build-ubuntu:
 	docker build --build-arg TARGETPLATFORM=${TARGET_PLATFORM} --build-arg RUNNER_VERSION=${RUNNER_VERSION} --build-arg DOCKER_VERSION=${DOCKER_VERSION} -t ${NAME}:${TAG} .
-	docker build --build-arg TARGETPLATFORM=${TARGET_PLATFORM} --build-arg RUNNER_VERSION=${RUNNER_VERSION} --build-arg DOCKER_VERSION=${DOCKER_VERSION} -t ${DIND_RUNNER_NAME}:${TAG} -f Dockerfile.dindrunner .
+	docker build --build-arg TARGETPLATFORM=${TARGET_PLATFORM} --build-arg RUNNER_VERSION=${RUNNER_VERSION} --build-arg DOCKER_VERSION=${DOCKER_VERSION} --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} -t ${DIND_RUNNER_NAME}:${TAG} -f Dockerfile.dindrunner .
 
 docker-push-ubuntu:
 	docker push ${NAME}:${TAG}
@@ -45,6 +46,7 @@ docker-buildx-ubuntu:
 	docker buildx build --platform ${PLATFORMS} \
 		--build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 		--build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+		--build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 		-t "${DIND_RUNNER_NAME}:latest" \
 		-f Dockerfile.dindrunner \
 		. ${PUSH_ARG}
