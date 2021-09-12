@@ -4,6 +4,7 @@ ARG TARGETPLATFORM
 ARG RUNNER_VERSION=2.287.1
 ARG DOCKER_CHANNEL=stable
 ARG DOCKER_VERSION=20.10.12
+ARG DOCKER_BUILDX_VERSION=0.6.3
 ARG DUMB_INIT_VERSION=1.2.5
 
 RUN test -n "$TARGETPLATFORM" || (echo "TARGETPLATFORM must be set" && false)
@@ -71,6 +72,14 @@ RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
 		--directory /usr/local/bin/ \
 	; \
 	rm docker.tgz; \
+    mkdir -p /home/runner/.docker/cli-plugins; \
+    export BUILDX_ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2); \
+    if ! curl -L -o /home/runner/.docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-${BUILDX_ARCH}"; then \
+        echo >&2 "error: failed to download docker-buildx v${DOCKER_VERSION}'"; \
+        exit 1; \
+    fi; \
+    chown -R runner:docker /home/runner/.docker; \
+    chmod +x /home/runner/.docker/cli-plugins/docker-buildx; \
 	dockerd --version; \
 	docker --version
 
