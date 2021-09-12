@@ -5,6 +5,7 @@ TARGET_PLATFORM ?= $(shell arch)
 
 RUNNER_VERSION ?= 2.280.3
 DOCKER_VERSION ?= 20.10.8
+DOCKER_BUILDX_VERSION ?= 0.6.3
 
 # default list of platforms for which multiarch image is built
 ifeq (${PLATFORMS}, )
@@ -15,7 +16,7 @@ endif
 ifeq (${IMG_RESULT}, load)
 	export PUSH_ARG="--load"
     # if load is specified, image will be built only for the build machine architecture.
-    export PLATFORMS="local"
+    #export PLATFORMS="local"
 else ifeq (${IMG_RESULT}, cache)
 	# if cache is specified, image will only be available in the build cache, it won't be pushed or loaded
 	# therefore no PUSH_ARG will be specified
@@ -25,7 +26,7 @@ endif
 
 docker-build-ubuntu:
 	docker build --build-arg TARGETPLATFORM=${TARGET_PLATFORM} --build-arg RUNNER_VERSION=${RUNNER_VERSION} --build-arg DOCKER_VERSION=${DOCKER_VERSION} -t ${NAME}:${TAG} .
-	docker build --build-arg TARGETPLATFORM=${TARGET_PLATFORM} --build-arg RUNNER_VERSION=${RUNNER_VERSION} --build-arg DOCKER_VERSION=${DOCKER_VERSION} -t ${DIND_RUNNER_NAME}:${TAG} -f Dockerfile.dindrunner .
+	docker build --build-arg TARGETPLATFORM=${TARGET_PLATFORM} --build-arg RUNNER_VERSION=${RUNNER_VERSION} --build-arg DOCKER_VERSION=${DOCKER_VERSION} --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} -t ${DIND_RUNNER_NAME}:${TAG} -f Dockerfile.dindrunner .
 
 docker-push-ubuntu:
 	docker push ${NAME}:${TAG}
@@ -45,6 +46,7 @@ docker-buildx-ubuntu:
 	docker buildx build --platform ${PLATFORMS} \
 		--build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 		--build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+		--build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 		-t "${DIND_RUNNER_NAME}:latest" \
 		-f Dockerfile.dindrunner \
 		. ${PUSH_ARG}
