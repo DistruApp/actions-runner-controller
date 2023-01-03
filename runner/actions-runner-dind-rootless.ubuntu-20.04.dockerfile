@@ -5,6 +5,7 @@ ARG RUNNER_VERSION
 ARG RUNNER_CONTAINER_HOOKS_VERSION
 # Docker and Docker Compose arguments
 ENV CHANNEL=stable
+ARG DOCKER_BUILDX_VERSION=0.30.1
 ARG DOCKER_COMPOSE_VERSION=v2.38.2
 ARG DUMB_INIT_VERSION=1.2.5
 
@@ -137,7 +138,15 @@ USER runner
 # This will install docker under $HOME/bin according to the content of the script
 RUN export SKIP_IPTABLES=1 \
     && curl -fsSL https://get.docker.com/rootless | sh \
-    && /home/runner/bin/docker -v
+    && /home/runner/bin/docker -v \
+    && mkdir -p /home/runner/.docker/cli-plugins \
+    && export BUILDX_ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+    && if ! curl -L -o /home/runner/.docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-${BUILDX_ARCH}"; then \
+        echo >&2 "error: failed to download docker-buildx v${DOCKER_VERSION}'"; \
+        exit 1; \
+    fi; \
+    && chown -R runner:runner /home/runner/.docker; \
+    && chmod +x /home/runner/.docker/cli-plugins/docker-buildx;
 
 RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
     && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
