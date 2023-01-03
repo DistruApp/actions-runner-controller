@@ -6,6 +6,7 @@ ARG RUNNER_CONTAINER_HOOKS_VERSION=0.1.2
 # Docker and Docker Compose arguments
 ARG CHANNEL=stable
 ARG DOCKER_VERSION=20.10.18
+ARG DOCKER_BUILDX_VERSION=0.6.3
 ARG DOCKER_COMPOSE_VERSION=v2.6.0
 ARG DUMB_INIT_VERSION=1.2.5
 
@@ -98,10 +99,20 @@ RUN set -vx; \
     export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
     && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
     && if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then export ARCH=x86_64 ; fi \
+    && update-alternatives --set iptables /usr/sbin/iptables-legacy \
+    && update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy \
     && curl -fLo docker.tgz https://download.docker.com/linux/static/${CHANNEL}/${ARCH}/docker-${DOCKER_VERSION}.tgz \
     && tar zxvf docker.tgz \
     && install -o root -g root -m 755 docker/* /usr/bin/ \
-    && rm -rf docker docker.tgz
+    && rm -rf docker docker.tgz \
+    && mkdir -p /home/runner/.docker/cli-plugins \
+    && export BUILDX_ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
+    && if ! curl -L -o /home/runner/.docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-${BUILDX_ARCH}"; then \
+        echo >&2 "error: failed to download docker-buildx v${DOCKER_VERSION}'"; \
+        exit 1; \
+    fi \
+    && chown -R runner:docker /home/runner/.docker \
+    && chmod +x /home/runner/.docker/cli-plugins/docker-buildx
 
 RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
     && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \

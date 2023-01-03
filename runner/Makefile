@@ -9,6 +9,7 @@ TARGETPLATFORM ?= $(shell arch)
 RUNNER_VERSION ?= 2.299.1
 RUNNER_CONTAINER_HOOKS_VERSION ?= 0.1.3
 DOCKER_VERSION ?= 20.10.21
+DOCKER_BUILDX_VERSION ?= 0.6.3
 
 # default list of platforms for which multiarch image is built
 ifeq (${PLATFORMS}, )
@@ -52,12 +53,14 @@ docker-build-set: check-target-platform
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg RUNNER_CONTAINER_HOOKS_VERSION=${RUNNER_CONTAINER_HOOKS_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind.${OS_IMAGE}.dockerfile \
 	  -t ${DIND_RUNNER_NAME}:${OS_IMAGE} .
 	${DOCKER} build \
 	  --build-arg TARGETPLATFORM=${TARGETPLATFORM} \
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind-rootless.${OS_IMAGE}.dockerfile \
 	  -t "${DIND_ROOTLESS_RUNNER_NAME}:${OS_IMAGE}" .
 
@@ -76,6 +79,7 @@ docker-build-dind: check-target-platform
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg RUNNER_CONTAINER_HOOKS_VERSION=${RUNNER_CONTAINER_HOOKS_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind.${OS_IMAGE}.dockerfile \
 	  -t ${DIND_RUNNER_NAME}:${OS_IMAGE} .
 
@@ -107,6 +111,7 @@ docker-buildx-set:
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg RUNNER_CONTAINER_HOOKS_VERSION=${RUNNER_CONTAINER_HOOKS_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind.${OS_IMAGE}.dockerfile \
 	  -t "${DIND_RUNNER_NAME}:${OS_IMAGE}" \
 	  . ${PUSH_ARG}
@@ -114,6 +119,7 @@ docker-buildx-set:
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg RUNNER_CONTAINER_HOOKS_VERSION=${RUNNER_CONTAINER_HOOKS_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind-rootless.${OS_IMAGE}.dockerfile \
 	  -t "${DIND_ROOTLESS_RUNNER_NAME}:${OS_IMAGE}" \
 	  . ${PUSH_ARG}
@@ -142,6 +148,7 @@ docker-buildx-dind:
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg RUNNER_CONTAINER_HOOKS_VERSION=${RUNNER_CONTAINER_HOOKS_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind.${OS_IMAGE}.dockerfile \
 	  -t "${DIND_RUNNER_NAME}:${OS_IMAGE}" \
 	  . ${PUSH_ARG}
@@ -156,6 +163,7 @@ docker-buildx-dind-rootless:
 	  --build-arg RUNNER_VERSION=${RUNNER_VERSION} \
 	  --build-arg RUNNER_CONTAINER_HOOKS_VERSION=${RUNNER_CONTAINER_HOOKS_VERSION} \
 	  --build-arg DOCKER_VERSION=${DOCKER_VERSION} \
+	  --build-arg DOCKER_BUILDX_VERSION=${DOCKER_BUILDX_VERSION} \
 	  -f actions-runner-dind-rootless.${OS_IMAGE}.dockerfile \
 	  -t "${DIND_ROOTLESS_RUNNER_NAME}:${OS_IMAGE}" \
 	  . ${PUSH_ARG}
