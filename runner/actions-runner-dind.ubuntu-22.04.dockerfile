@@ -1,13 +1,13 @@
 FROM ubuntu:22.04
 
 ARG TARGETPLATFORM
-ARG RUNNER_VERSION=2.299.1
-ARG RUNNER_CONTAINER_HOOKS_VERSION=0.1.3
+ARG RUNNER_VERSION
+ARG RUNNER_CONTAINER_HOOKS_VERSION
 # Docker and Docker Compose arguments
 ARG CHANNEL=stable
-ARG DOCKER_VERSION=20.10.21
-ARG DOCKER_BUILDX_VERSION=0.6.3
-ARG DOCKER_COMPOSE_VERSION=v2.12.2
+ARG DOCKER_VERSION=28.0.4
+ARG DOCKER_BUILDX_VERSION=0.30.1
+ARG DOCKER_COMPOSE_VERSION=v2.38.2
 ARG DUMB_INIT_VERSION=1.2.5
 ARG RUNNER_USER_UID=1001
 ARG DOCKER_GROUP_GID=121
@@ -22,7 +22,6 @@ RUN apt-get update -y \
     curl \
     ca-certificates \
     git \
-    git-lfs \
     iptables \
     jq \
     make \
@@ -32,6 +31,10 @@ RUN apt-get update -y \
     wget \
     zip \
     && rm -rf /var/lib/apt/lists/*
+
+# Download latest git-lfs version
+RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
+    apt-get install -y --no-install-recommends git-lfs
 
 # Runner user
 RUN adduser --disabled-password --gecos "" --uid $RUNNER_USER_UID runner \
@@ -96,8 +99,12 @@ RUN set -vx; \
 RUN export ARCH=$(echo ${TARGETPLATFORM} | cut -d / -f2) \
     && if [ "$ARCH" = "arm64" ]; then export ARCH=aarch64 ; fi \
     && if [ "$ARCH" = "amd64" ] || [ "$ARCH" = "i386" ]; then export ARCH=x86_64 ; fi \
-    && curl -fLo /usr/bin/docker-compose https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${ARCH} \
-    && chmod +x /usr/bin/docker-compose
+    && mkdir -p /usr/libexec/docker/cli-plugins \
+    && curl -fLo /usr/libexec/docker/cli-plugins/docker-compose https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${ARCH} \
+    && chmod +x /usr/libexec/docker/cli-plugins/docker-compose \
+    && ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/bin/docker-compose \
+    && which docker-compose \
+    && docker compose version
 
 # We place the scripts in `/usr/bin` so that users who extend this image can
 # override them with scripts of the same name placed in `/usr/local/bin`.

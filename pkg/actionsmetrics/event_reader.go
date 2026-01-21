@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	gogithub "github.com/google/go-github/v47/github"
+	gogithub "github.com/google/go-github/v52/github"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/actions/actions-runner-controller/github"
@@ -59,11 +59,60 @@ func (reader *EventReader) ProcessWorkflowJobEvent(ctx context.Context, event in
 	}
 
 	// collect labels
-	labels := make(prometheus.Labels)
+	var (
+		labels        = make(prometheus.Labels)
+		keysAndValues = []interface{}{"job_id", fmt.Sprint(*e.WorkflowJob.ID)}
+	)
 
 	runsOn := strings.Join(e.WorkflowJob.Labels, `,`)
 	labels["runs_on"] = runsOn
+
 	labels["job_name"] = *e.WorkflowJob.Name
+	keysAndValues = append(keysAndValues, "job_name", *e.WorkflowJob.Name)
+
+	if e.Repo != nil {
+		if n := e.Repo.Name; n != nil {
+			labels["repository"] = *n
+			keysAndValues = append(keysAndValues, "repository", *n)
+		}
+		if n := e.Repo.FullName; n != nil {
+			labels["repository_full_name"] = *n
+			keysAndValues = append(keysAndValues, "repository_full_name", *n)
+		}
+
+		if e.Repo.Owner != nil {
+			if l := e.Repo.Owner.Login; l != nil {
+				labels["owner"] = *l
+				keysAndValues = append(keysAndValues, "owner", *l)
+			}
+		}
+	}
+
+	var org string
+	if e.Org != nil {
+		if n := e.Org.Name; n != nil {
+			org = *n
+			keysAndValues = append(keysAndValues, "organization", *n)
+		}
+	}
+	labels["organization"] = org
+
+	var wn string
+	var hb string
+	if e.WorkflowJob != nil {
+		if n := e.WorkflowJob.WorkflowName; n != nil {
+			wn = *n
+			keysAndValues = append(keysAndValues, "workflow_name", *n)
+		}
+		if n := e.WorkflowJob.HeadBranch; n != nil {
+			hb = *n
+			keysAndValues = append(keysAndValues, "head_branch", *n)
+		}
+	}
+	labels["workflow_name"] = wn
+	labels["head_branch"] = hb
+
+	log := reader.Log.WithValues(keysAndValues...)
 
 	// switch on job status
 	switch action := e.GetAction(); action {
@@ -79,13 +128,10 @@ func (reader *EventReader) ProcessWorkflowJobEvent(ctx context.Context, event in
 
 		parseResult, err := reader.fetchAndParseWorkflowJobLogs(ctx, e)
 		if err != nil {
-			reader.Log.Error(err, "reading workflow job log")
+			log.Error(err, "reading workflow job log")
 			return
 		} else {
-			reader.Log.Info("reading workflow_job logs",
-				"job_name", *e.WorkflowJob.Name,
-				"job_id", fmt.Sprint(*e.WorkflowJob.ID),
-			)
+			log.Info("reading workflow_job logs")
 		}
 
 		githubWorkflowJobQueueDurationSeconds.With(labels).Observe(parseResult.QueueTime.Seconds())
@@ -96,20 +142,36 @@ func (reader *EventReader) ProcessWorkflowJobEvent(ctx context.Context, event in
 		// job_conclusion -> (neutral, success, skipped, cancelled, timed_out, action_required, failure)
 		githubWorkflowJobConclusionsTotal.With(extraLabel("job_conclusion", *e.WorkflowJob.Conclusion, labels)).Inc()
 
-		parseResult, err := reader.fetchAndParseWorkflowJobLogs(ctx, e)
-		if err != nil {
-			reader.Log.Error(err, "reading workflow job log")
-			return
-		} else {
-			reader.Log.Info("reading workflow_job logs",
-				"job_name", *e.WorkflowJob.Name,
-				"job_id", fmt.Sprint(*e.WorkflowJob.ID),
-			)
+		var (
+			exitCode       = "na"
+			runTimeSeconds *float64
+		)
+
+		// We need to do our best not to fail the whole event processing
+		// when the user provided no GitHub API credentials.
+		// See https://github.com/actions/actions-runner-controller/issues/2424
+		if reader.GitHubClient != nil {
+			parseResult, err := reader.fetchAndParseWorkflowJobLogs(ctx, e)
+			if err != nil {
+				log.Error(err, "reading workflow job log")
+				return
+			}
+
+			exitCode = parseResult.ExitCode
+
+			s := parseResult.RunTime.Seconds()
+			runTimeSeconds = &s
+
+			log.WithValues(keysAndValues...).Info("reading workflow_job logs", "exit_code", exitCode)
 		}
 
 		if *e.WorkflowJob.Conclusion == "failure" {
 			failedStep := "null"
 			for i, step := range e.WorkflowJob.Steps {
+				conclusion := step.Conclusion
+				if conclusion == nil {
+					continue
+				}
 
 				// *step.Conclusion ~
 				// "success",
@@ -120,24 +182,26 @@ func (reader *EventReader) ProcessWorkflowJobEvent(ctx context.Context, event in
 				// "timed_out",
 				// "action_required",
 				// null
-				if *step.Conclusion == "failure" {
+				if *conclusion == "failure" {
 					failedStep = fmt.Sprint(i)
 					break
 				}
-				if *step.Conclusion == "timed_out" {
+				if *conclusion == "timed_out" {
 					failedStep = fmt.Sprint(i)
-					parseResult.ExitCode = "timed_out"
+					exitCode = "timed_out"
 					break
 				}
 			}
 			githubWorkflowJobFailuresTotal.With(
 				extraLabel("failed_step", failedStep,
-					extraLabel("exit_code", parseResult.ExitCode, labels),
+					extraLabel("exit_code", exitCode, labels),
 				),
 			).Inc()
 		}
 
-		githubWorkflowJobRunDurationSeconds.With(extraLabel("job_conclusion", *e.WorkflowJob.Conclusion, labels)).Observe(parseResult.RunTime.Seconds())
+		if runTimeSeconds != nil {
+			githubWorkflowJobRunDurationSeconds.With(extraLabel("job_conclusion", *e.WorkflowJob.Conclusion, labels)).Observe(*runTimeSeconds)
+		}
 	}
 }
 

@@ -1,154 +1,121 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: manager-role
 rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  - pods
+  - pods/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumes
+  verbs:
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/status
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - actions.github.com
+  resources:
+  - autoscalinglisteners
+  - autoscalingrunnersets
+  - ephemeralrunners
+  - ephemeralrunners/finalizers
+  - ephemeralrunnersets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - actions.github.com
+  resources:
+  - autoscalinglisteners/finalizers
+  - autoscalingrunnersets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - actions.github.com
+  resources:
+  - autoscalinglisteners/status
+  - autoscalingrunnersets/status
+  - ephemeralrunners/status
+  - ephemeralrunnersets/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - actions.github.com
+  resources:
+  - ephemeralrunnersets/finalizers
+  verbs:
+  - patch
+  - update
 - apiGroups:
   - actions.summerwind.dev
   resources:
   - horizontalrunnerautoscalers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - horizontalrunnerautoscalers/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
-  - horizontalrunnerautoscalers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runnerdeployments
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runnerdeployments/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
-  - runnerdeployments/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runnerreplicasets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runnerreplicasets/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
-  - runnerreplicasets/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runners
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runners/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
-  - runners/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runnersets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - actions.summerwind.dev
-  resources:
   - runnersets/finalizers
   verbs:
   - create
@@ -161,6 +128,10 @@ rules:
 - apiGroups:
   - actions.summerwind.dev
   resources:
+  - horizontalrunnerautoscalers/status
+  - runnerdeployments/status
+  - runnerreplicasets/status
+  - runners/status
   - runnersets/status
   verbs:
   - get
@@ -196,77 +167,6 @@ rules:
   - list
   - update
 - apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumeclaims
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - persistentvolumes
-  verbs:
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - pods/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  verbs:
-  - create
-  - delete
-  - get
-- apiGroups:
   - rbac.authorization.k8s.io
   resources:
   - rolebindings
@@ -274,6 +174,8 @@ rules:
   - create
   - delete
   - get
+  - list
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
@@ -282,3 +184,6 @@ rules:
   - create
   - delete
   - get
+  - list
+  - update
+  - watch

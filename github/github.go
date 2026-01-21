@@ -15,7 +15,7 @@ import (
 	"github.com/actions/actions-runner-controller/logging"
 	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/go-logr/logr"
-	"github.com/google/go-github/v47/github"
+	"github.com/google/go-github/v52/github"
 	"github.com/gregjones/httpcache"
 	"golang.org/x/oauth2"
 )
@@ -84,6 +84,8 @@ func (c *Config) NewClient() (*Client, error) {
 				return nil, fmt.Errorf("enterprise url incorrect: %v", err)
 			}
 			tr.BaseURL = githubAPIURL
+		} else if c.URL != "" && tr.BaseURL != c.URL {
+			tr.BaseURL = c.URL
 		}
 		transport = tr
 	}
@@ -93,6 +95,8 @@ func (c *Config) NewClient() (*Client, error) {
 	loggingTransport := logging.Transport{Transport: cached, Log: c.Log}
 	metricsTransport := metrics.Transport{Transport: loggingTransport}
 	httpClient := &http.Client{Transport: metricsTransport}
+
+	metrics.Register()
 
 	var client *github.Client
 	var githubBaseURL string
@@ -286,7 +290,7 @@ func (c *Client) ListRunnerGroupRepositoryAccesses(ctx context.Context, org stri
 
 	opts := github.ListOptions{PerPage: 100}
 	for {
-		list, res, err := c.Client.Actions.ListRepositoryAccessRunnerGroup(ctx, org, runnerGroupId, &opts)
+		list, res, err := c.Actions.ListRepositoryAccessRunnerGroup(ctx, org, runnerGroupId, &opts)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list repository access for runner group: %w", err)
 		}
@@ -319,32 +323,32 @@ func (c *Client) cleanup() {
 
 func (c *Client) createRegistrationToken(ctx context.Context, enterprise, org, repo string) (*github.RegistrationToken, *github.Response, error) {
 	if len(repo) > 0 {
-		return c.Client.Actions.CreateRegistrationToken(ctx, org, repo)
+		return c.Actions.CreateRegistrationToken(ctx, org, repo)
 	}
 	if len(org) > 0 {
-		return c.Client.Actions.CreateOrganizationRegistrationToken(ctx, org)
+		return c.Actions.CreateOrganizationRegistrationToken(ctx, org)
 	}
-	return c.Client.Enterprise.CreateRegistrationToken(ctx, enterprise)
+	return c.Enterprise.CreateRegistrationToken(ctx, enterprise)
 }
 
 func (c *Client) removeRunner(ctx context.Context, enterprise, org, repo string, runnerID int64) (*github.Response, error) {
 	if len(repo) > 0 {
-		return c.Client.Actions.RemoveRunner(ctx, org, repo, runnerID)
+		return c.Actions.RemoveRunner(ctx, org, repo, runnerID)
 	}
 	if len(org) > 0 {
-		return c.Client.Actions.RemoveOrganizationRunner(ctx, org, runnerID)
+		return c.Actions.RemoveOrganizationRunner(ctx, org, runnerID)
 	}
-	return c.Client.Enterprise.RemoveRunner(ctx, enterprise, runnerID)
+	return c.Enterprise.RemoveRunner(ctx, enterprise, runnerID)
 }
 
 func (c *Client) listRunners(ctx context.Context, enterprise, org, repo string, opts *github.ListOptions) (*github.Runners, *github.Response, error) {
 	if len(repo) > 0 {
-		return c.Client.Actions.ListRunners(ctx, org, repo, opts)
+		return c.Actions.ListRunners(ctx, org, repo, opts)
 	}
 	if len(org) > 0 {
-		return c.Client.Actions.ListOrganizationRunners(ctx, org, opts)
+		return c.Actions.ListOrganizationRunners(ctx, org, opts)
 	}
-	return c.Client.Enterprise.ListRunners(ctx, enterprise, opts)
+	return c.Enterprise.ListRunners(ctx, enterprise, opts)
 }
 
 func (c *Client) ListRepositoryWorkflowRuns(ctx context.Context, user string, repoName string) ([]*github.WorkflowRun, error) {
@@ -377,7 +381,7 @@ func (c *Client) listRepositoryWorkflowRuns(ctx context.Context, user string, re
 	}
 
 	for {
-		list, res, err := c.Client.Actions.ListRepositoryWorkflowRuns(ctx, user, repoName, &opts)
+		list, res, err := c.Actions.ListRepositoryWorkflowRuns(ctx, user, repoName, &opts)
 
 		if err != nil {
 			return workflowRuns, fmt.Errorf("failed to list workflow runs: %v", err)

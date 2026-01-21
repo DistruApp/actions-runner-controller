@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM --platform=$BUILDPLATFORM golang:1.19.4 as builder
+FROM --platform=$BUILDPLATFORM golang:1.25.1 AS builder
 
 WORKDIR /workspace
 
@@ -24,21 +24,23 @@ RUN go mod download
 # With the above commmand,
 # TARGETOS can be "linux", TARGETARCH can be "amd64", "arm64", and "arm", TARGETVARIANT can be "v7".
 
-ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT VERSION=dev
+ARG TARGETPLATFORM TARGETOS TARGETARCH TARGETVARIANT VERSION=dev COMMIT_SHA=dev
 
 # We intentionally avoid `--mount=type=cache,mode=0777,target=/go/pkg/mod` in the `go mod download` and the `go build` runs
 # to avoid https://github.com/moby/buildkit/issues/2334
 # We can use docker layer cache so the build is fast enogh anyway
 # We also use per-platform GOCACHE for the same reason.
-ENV GOCACHE /build/${TARGETPLATFORM}/root/.cache/go-build
+ENV GOCACHE="/build/${TARGETPLATFORM}/root/.cache/go-build"
 
 # Build
 RUN --mount=target=. \
   --mount=type=cache,mode=0777,target=${GOCACHE} \
   export GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} && \
-  go build -trimpath -ldflags="-s -w -X 'github.com/actions/actions-runner-controller/build.Version=${VERSION}'" -o /out/manager main.go && \
+  go build -trimpath -ldflags="-s -w -X 'github.com/actions/actions-runner-controller/build.Version=${VERSION}' -X 'github.com/actions/actions-runner-controller/build.CommitSHA=${COMMIT_SHA}'" -o /out/manager main.go && \
+  go build -trimpath -ldflags="-s -w -X 'github.com/actions/actions-runner-controller/build.Version=${VERSION}' -X 'github.com/actions/actions-runner-controller/build.CommitSHA=${COMMIT_SHA}'" -o /out/ghalistener ./cmd/ghalistener && \
   go build -trimpath -ldflags="-s -w" -o /out/github-webhook-server ./cmd/githubwebhookserver && \
-  go build -trimpath -ldflags="-s -w" -o /out/actions-metrics-server ./cmd/actionsmetricsserver
+  go build -trimpath -ldflags="-s -w" -o /out/actions-metrics-server ./cmd/actionsmetricsserver && \
+  go build -trimpath -ldflags="-s -w" -o /out/sleep ./cmd/sleep
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
@@ -49,6 +51,8 @@ WORKDIR /
 COPY --from=builder /out/manager .
 COPY --from=builder /out/github-webhook-server .
 COPY --from=builder /out/actions-metrics-server .
+COPY --from=builder /out/ghalistener .
+COPY --from=builder /out/sleep .
 
 USER 65532:65532
 

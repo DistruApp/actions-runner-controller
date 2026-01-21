@@ -1,4 +1,4 @@
-package controllers
+package actionssummerwindnet
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 
 	github2 "github.com/actions/actions-runner-controller/github"
-	"github.com/google/go-github/v47/github"
+	"github.com/google/go-github/v52/github"
 
 	"github.com/actions/actions-runner-controller/github/fake"
 
@@ -16,9 +16,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,9 +42,6 @@ var (
 	workflowRunsFor3Replicas             = `{"total_count": 5, "workflow_runs":[{"status":"queued"}, {"status":"queued"}, {"status":"in_progress"}, {"status":"in_progress"}, {"status":"completed"}]}"`
 	workflowRunsFor3Replicas_queued      = `{"total_count": 2, "workflow_runs":[{"status":"queued"}, {"status":"queued"}]}"`
 	workflowRunsFor3Replicas_in_progress = `{"total_count": 1, "workflow_runs":[{"status":"in_progress"}]}"`
-	workflowRunsFor1Replicas             = `{"total_count": 6, "workflow_runs":[{"status":"queued"}, {"status":"completed"}, {"status":"completed"}, {"status":"completed"}, {"status":"completed"}]}"`
-	workflowRunsFor1Replicas_queued      = `{"total_count": 1, "workflow_runs":[{"status":"queued"}]}"`
-	workflowRunsFor1Replicas_in_progress = `{"total_count": 0, "workflow_runs":[]}"`
 )
 
 // SetupIntegrationTest will set up a testing environment.
@@ -72,7 +71,14 @@ func SetupIntegrationTest(ctx2 context.Context) *testEnvironment {
 		Expect(err).NotTo(HaveOccurred(), "failed to create test namespace")
 
 		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-			Namespace: ns.Name,
+			Cache: cache.Options{
+				DefaultNamespaces: map[string]cache.Config{
+					ns.Name: {},
+				},
+			},
+			Metrics: metricsserver.Options{
+				BindAddress: "0",
+			},
 		})
 		Expect(err).NotTo(HaveOccurred(), "failed to create manager")
 
@@ -107,12 +113,14 @@ func SetupIntegrationTest(ctx2 context.Context) *testEnvironment {
 			Log:                         logf.Log,
 			Recorder:                    mgr.GetEventRecorderFor("runnerreplicaset-controller"),
 			GitHubClient:                multiClient,
-			RunnerImage:                 "example/runner:test",
-			DockerImage:                 "example/docker:test",
 			Name:                        controllerName("runner"),
 			RegistrationRecheckInterval: time.Millisecond * 100,
 			RegistrationRecheckJitter:   time.Millisecond * 10,
 			UnregistrationRetryDelay:    1 * time.Second,
+			RunnerPodDefaults: RunnerPodDefaults{
+				RunnerImage: "example/runner:test",
+				DockerImage: "example/docker:test",
+			},
 		}
 		err = runnerController.SetupWithManager(mgr)
 		Expect(err).NotTo(HaveOccurred(), "failed to setup runner controller")
@@ -191,7 +199,6 @@ var _ = Context("INTEGRATION: Inside of a new namespace", func() {
 	ns := env.Namespace
 
 	Describe("when no existing resources exist", func() {
-
 		It("should create and scale organization's repository runners on workflow_job event", func() {
 			name := "example-runnerdeploy"
 
@@ -458,7 +465,6 @@ var _ = Context("INTEGRATION: Inside of a new namespace", func() {
 				env.ExpectRegisteredNumberCountEventuallyEquals(2, "count of fake list runners")
 			}
 		})
-
 	})
 })
 

@@ -1,4 +1,4 @@
-package controllers
+package actionssummerwindnet
 
 import (
 	"bytes"
@@ -9,12 +9,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	actionsv1alpha1 "github.com/actions/actions-runner-controller/apis/actions.summerwind.net/v1alpha1"
 	"github.com/go-logr/logr"
-	"github.com/google/go-github/v47/github"
+	"github.com/google/go-github/v52/github"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -376,19 +377,24 @@ func TestGetRequest(t *testing.T) {
 
 func TestGetValidCapacityReservations(t *testing.T) {
 	now := time.Now()
+	duration, _ := time.ParseDuration("10m")
+	effectiveTime := now.Add(-duration)
 
 	hra := &actionsv1alpha1.HorizontalRunnerAutoscaler{
 		Spec: actionsv1alpha1.HorizontalRunnerAutoscalerSpec{
 			CapacityReservations: []actionsv1alpha1.CapacityReservation{
 				{
+					EffectiveTime:  metav1.Time{Time: effectiveTime.Add(-time.Second)},
 					ExpirationTime: metav1.Time{Time: now.Add(-time.Second)},
 					Replicas:       1,
 				},
 				{
+					EffectiveTime:  metav1.Time{Time: effectiveTime},
 					ExpirationTime: metav1.Time{Time: now},
 					Replicas:       2,
 				},
 				{
+					EffectiveTime:  metav1.Time{Time: effectiveTime.Add(time.Second)},
 					ExpirationTime: metav1.Time{Time: now.Add(time.Second)},
 					Replicas:       3,
 				},
@@ -414,9 +420,14 @@ func TestGetValidCapacityReservations(t *testing.T) {
 func installTestLogger(webhook *HorizontalRunnerAutoscalerGitHubWebhook) *bytes.Buffer {
 	logs := &bytes.Buffer{}
 
+	// Wrap the buffer with a synchronized writer to prevent race conditions
+	syncWriter := &syncWriter{
+		writer: logs,
+	}
+
 	sink := &testLogSink{
 		name:   "testlog",
-		writer: logs,
+		writer: syncWriter,
 	}
 
 	log := logr.New(sink)
@@ -431,7 +442,11 @@ func testServerWithInitObjs(t *testing.T, eventType string, event interface{}, w
 
 	hraWebhook := &HorizontalRunnerAutoscalerGitHubWebhook{}
 
-	client := fake.NewClientBuilder().WithScheme(sc).WithRuntimeObjects(initObjs...).Build()
+	client := fake.NewClientBuilder().
+		WithScheme(sc).
+		WithRuntimeObjects(initObjs...).
+		WithIndex(&actionsv1alpha1.HorizontalRunnerAutoscaler{}, scaleTargetKey, hraWebhook.indexer).
+		Build()
 
 	logs := installTestLogger(hraWebhook)
 
@@ -506,6 +521,18 @@ func sendWebhook(server *httptest.Server, eventType string, event interface{}) (
 	}
 
 	return http.DefaultClient.Do(req)
+}
+
+// syncWriter wraps an io.Writer with a mutex for thread-safe writes
+type syncWriter struct {
+	writer io.Writer
+	mu     sync.Mutex
+}
+
+func (sw *syncWriter) Write(p []byte) (n int, err error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.writer.Write(p)
 }
 
 // testLogSink is a sample logr.Logger that logs in-memory.

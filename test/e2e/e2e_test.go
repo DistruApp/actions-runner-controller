@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/actions/actions-runner-controller/testing"
-	"github.com/google/go-github/v47/github"
+	"github.com/google/go-github/v52/github"
 	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -31,17 +31,13 @@ var (
 	// https://cert-manager.io/docs/installation/supported-releases/
 	certManagerVersion = "v1.8.2"
 
-	images = []testing.ContainerImage{
-		testing.Img("docker", "dind"),
-		testing.Img("quay.io/brancz/kube-rbac-proxy", "v0.10.0"),
-		testing.Img("quay.io/jetstack/cert-manager-controller", certManagerVersion),
-		testing.Img("quay.io/jetstack/cert-manager-cainjector", certManagerVersion),
-		testing.Img("quay.io/jetstack/cert-manager-webhook", certManagerVersion),
-	}
+	arcStableImageRepo = "summerwind/actions-runner-controller"
+	arcStableImageTag  = "v0.25.2"
 
 	testResultCMNamePrefix = "test-result-"
 
-	RunnerVersion = "2.299.1"
+	RunnerVersion               = "2.331.0"
+	RunnerContainerHooksVersion = "0.8.0"
 )
 
 // If you're willing to run this test via VS Code "run test" or "debug test",
@@ -97,16 +93,17 @@ func TestE2E(t *testing.T) {
 		os.Getenv("UBUNTU_VERSION"),
 	)
 
-	var testedVersions = []struct {
+	testedVersions := []struct {
 		label                     string
 		controller, controllerVer string
 		chart, chartVer           string
+		opt                       []InstallARCOption
 	}{
 		{
 			label:         "stable",
-			controller:    "summerwind/actions-runner-controller",
-			controllerVer: "v0.25.2",
-			chart:         "actions/actions-runner-controller",
+			controller:    arcStableImageRepo,
+			controllerVer: arcStableImageTag,
+			chart:         "actions-runner-controller/actions-runner-controller",
 			// 0.20.2 accidentally added support for runner-status-update which isn't supported by ARC 0.25.2.
 			// With some chart values, the controller end up with crashlooping with `flag provided but not defined: -runner-status-update-hook`.
 			chartVer: "0.20.1",
@@ -117,6 +114,12 @@ func TestE2E(t *testing.T) {
 			controllerVer: vars.controllerImageTag,
 			chart:         "",
 			chartVer:      "",
+			opt: []InstallARCOption{
+				func(ia *InstallARCConfig) {
+					ia.GithubWebhookServerEnvName = "FOO"
+					ia.GithubWebhookServerEnvValue = "foo"
+				},
+			},
 		},
 	}
 
@@ -151,9 +154,7 @@ func TestE2E(t *testing.T) {
 			t.Skip("RunnerSets test has been skipped due to ARC_E2E_SKIP_RUNNERSETS")
 		}
 
-		var (
-			testID string
-		)
+		var testID string
 
 		t.Run("get or generate test ID", func(t *testing.T) {
 			testID = env.GetOrGenerateTestID(t)
@@ -186,7 +187,7 @@ func TestE2E(t *testing.T) {
 		for i, v := range testedVersions {
 			t.Run("install actions-runner-controller "+v.label, func(t *testing.T) {
 				t.Logf("Using controller %s:%s and chart %s:%s", v.controller, v.controllerVer, v.chart, v.chartVer)
-				env.installActionsRunnerController(t, v.controller, v.controllerVer, testID, v.chart, v.chartVer)
+				env.installActionsRunnerController(t, v.controller, v.controllerVer, testID, v.chart, v.chartVer, v.opt...)
 			})
 
 			if t.Failed() {
@@ -222,12 +223,26 @@ func TestE2E(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
+			var cancelled bool
+			defer func() {
+				if !cancelled {
+					t.Logf("Stopping the continuous rolling-update of runners due to error(s)")
+				}
+				cancel()
+			}()
+
 			for i := 1; ; i++ {
+				if t.Failed() {
+					cancelled = true
+					return
+				}
+
 				select {
 				case _, ok := <-ctx.Done():
 					if !ok {
 						t.Logf("Stopping the continuous rolling-update of runners")
 					}
+					cancelled = true
 				default:
 					time.Sleep(60 * time.Second)
 
@@ -242,7 +257,7 @@ func TestE2E(t *testing.T) {
 		})
 
 		t.Run("Verify workflow run result", func(t *testing.T) {
-			env.verifyActionsWorkflowRun(t, testID)
+			env.verifyActionsWorkflowRun(t, ctx, testID)
 		})
 	})
 
@@ -251,9 +266,7 @@ func TestE2E(t *testing.T) {
 			t.Skip("RunnerSets test has been skipped due to ARC_E2E_SKIP_RUNNERSETS")
 		}
 
-		var (
-			testID string
-		)
+		var testID string
 
 		t.Run("get or generate test ID", func(t *testing.T) {
 			testID = env.GetOrGenerateTestID(t)
@@ -286,7 +299,7 @@ func TestE2E(t *testing.T) {
 		for i, v := range testedVersions {
 			t.Run("install actions-runner-controller "+v.label, func(t *testing.T) {
 				t.Logf("Using controller %s:%s and chart %s:%s", v.controller, v.controllerVer, v.chart, v.chartVer)
-				env.installActionsRunnerController(t, v.controller, v.controllerVer, testID, v.chart, v.chartVer)
+				env.installActionsRunnerController(t, v.controller, v.controllerVer, testID, v.chart, v.chartVer, v.opt...)
 			})
 
 			if t.Failed() {
@@ -322,12 +335,26 @@ func TestE2E(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
+			var cancelled bool
+			defer func() {
+				if !cancelled {
+					t.Logf("Stopping the continuous rolling-update of runners due to error(s)")
+				}
+				cancel()
+			}()
+
 			for i := 1; ; i++ {
+				if t.Failed() {
+					cancelled = true
+					return
+				}
+
 				select {
 				case _, ok := <-ctx.Done():
 					if !ok {
 						t.Logf("Stopping the continuous rolling-update of runners")
 					}
+					cancelled = true
 					return
 				default:
 					time.Sleep(10 * time.Second)
@@ -347,7 +374,7 @@ func TestE2E(t *testing.T) {
 		})
 
 		t.Run("Verify workflow run result", func(t *testing.T) {
-			env.verifyActionsWorkflowRun(t, testID)
+			env.verifyActionsWorkflowRun(t, ctx, testID)
 		})
 	})
 
@@ -370,6 +397,7 @@ type env struct {
 	appID, appInstallationID, appPrivateKeyFile string
 	githubToken, testRepo, testOrg, testOrgRepo string
 	githubTokenWebhook                          string
+	createSecretsUsingHelm                      string
 	testEnterprise                              string
 	testEphemeral                               string
 	scaleDownDelaySecondsAfterScaleOut          int64
@@ -384,8 +412,11 @@ type env struct {
 	runnerNamespace                             string
 	logFormat                                   string
 	remoteKubeconfig                            string
+	admissionWebhooksTimeout                    string
 	imagePullSecretName                         string
 	imagePullPolicy                             string
+	dindSidecarRepositoryAndTag                 string
+	watchNamespace                              string
 
 	vars          vars
 	VerifyTimeout time.Duration
@@ -397,6 +428,8 @@ type vars struct {
 	runnerImageRepo             string
 	runnerDindImageRepo         string
 	runnerRootlessDindImageRepo string
+
+	dindSidecarImageRepo, dindSidecarImageTag string
 
 	prebuildImages []testing.ContainerImage
 	builds         []testing.DockerBuild
@@ -420,6 +453,10 @@ func buildVars(repo, ubuntuVer string) vars {
 		runnerImage                 = testing.Img(runnerImageRepo, runnerImageTag)
 		runnerDindImage             = testing.Img(runnerDindImageRepo, runnerImageTag)
 		runnerRootlessDindImage     = testing.Img(runnerRootlessDindImageRepo, runnerImageTag)
+
+		dindSidecarImageRepo = "docker"
+		dindSidecarImageTag  = "28.0.4-dind"
+		dindSidecarImage     = testing.Img(dindSidecarImageRepo, dindSidecarImageTag)
 	)
 
 	var vs vars
@@ -429,6 +466,9 @@ func buildVars(repo, ubuntuVer string) vars {
 	vs.runnerRootlessDindImageRepo = runnerRootlessDindImageRepo
 	vs.runnerImageRepo = runnerImageRepo
 
+	vs.dindSidecarImageRepo = dindSidecarImageRepo
+	vs.dindSidecarImageTag = dindSidecarImageTag
+
 	// vs.controllerImage, vs.controllerImageTag
 
 	vs.prebuildImages = []testing.ContainerImage{
@@ -436,6 +476,7 @@ func buildVars(repo, ubuntuVer string) vars {
 		runnerImage,
 		runnerDindImage,
 		runnerRootlessDindImage,
+		dindSidecarImage,
 	}
 
 	vs.builds = []testing.DockerBuild{
@@ -452,6 +493,10 @@ func buildVars(repo, ubuntuVer string) vars {
 					Name:  "RUNNER_VERSION",
 					Value: RunnerVersion,
 				},
+				{
+					Name:  "RUNNER_CONTAINER_HOOKS_VERSION",
+					Value: RunnerContainerHooksVersion,
+				},
 			},
 			Image:        runnerImage,
 			EnableBuildX: true,
@@ -463,6 +508,10 @@ func buildVars(repo, ubuntuVer string) vars {
 					Name:  "RUNNER_VERSION",
 					Value: RunnerVersion,
 				},
+				{
+					Name:  "RUNNER_CONTAINER_HOOKS_VERSION",
+					Value: RunnerContainerHooksVersion,
+				},
 			},
 			Image:        runnerDindImage,
 			EnableBuildX: true,
@@ -473,6 +522,10 @@ func buildVars(repo, ubuntuVer string) vars {
 				{
 					Name:  "RUNNER_VERSION",
 					Value: RunnerVersion,
+				},
+				{
+					Name:  "RUNNER_CONTAINER_HOOKS_VERSION",
+					Value: RunnerContainerHooksVersion,
 				},
 			},
 			Image:        runnerRootlessDindImage,
@@ -505,6 +558,7 @@ func initTestEnv(t *testing.T, k8sMinorVer string, vars vars) *env {
 	e.appInstallationID = testing.Getenv(t, "GITHUB_APP_INSTALLATION_ID")
 	e.appPrivateKeyFile = testing.Getenv(t, "GITHUB_APP_PRIVATE_KEY_FILE")
 	e.githubTokenWebhook = testing.Getenv(t, "WEBHOOK_GITHUB_TOKEN")
+	e.createSecretsUsingHelm = testing.Getenv(t, "CREATE_SECRETS_USING_HELM")
 	e.repoToCommit = testing.Getenv(t, "TEST_COMMIT_REPO")
 	e.testRepo = testing.Getenv(t, "TEST_REPO", "")
 	e.testOrg = testing.Getenv(t, "TEST_ORG", "")
@@ -517,7 +571,10 @@ func initTestEnv(t *testing.T, k8sMinorVer string, vars vars) *env {
 	e.runnerNamespace = testing.Getenv(t, "TEST_RUNNER_NAMESPACE", "default")
 	e.logFormat = testing.Getenv(t, "ARC_E2E_LOG_FORMAT", "")
 	e.remoteKubeconfig = testing.Getenv(t, "ARC_E2E_REMOTE_KUBECONFIG", "")
+	e.admissionWebhooksTimeout = testing.Getenv(t, "ARC_E2E_ADMISSION_WEBHOOKS_TIMEOUT", "")
 	e.imagePullSecretName = testing.Getenv(t, "ARC_E2E_IMAGE_PULL_SECRET_NAME", "")
+	// This should be the default for Ubuntu 20.04 based runner images
+	e.dindSidecarRepositoryAndTag = vars.dindSidecarImageRepo + ":" + vars.dindSidecarImageTag
 	e.vars = vars
 
 	if e.remoteKubeconfig != "" {
@@ -526,11 +583,24 @@ func initTestEnv(t *testing.T, k8sMinorVer string, vars vars) *env {
 		e.imagePullPolicy = "IfNotPresent"
 	}
 
+	e.watchNamespace = testing.Getenv(t, "TEST_WATCH_NAMESPACE", "")
+
 	if e.remoteKubeconfig == "" {
+		images := []testing.ContainerImage{
+			testing.Img(vars.dindSidecarImageRepo, vars.dindSidecarImageTag),
+			testing.Img("quay.io/brancz/kube-rbac-proxy", "v0.10.0"),
+			testing.Img("quay.io/jetstack/cert-manager-controller", certManagerVersion),
+			testing.Img("quay.io/jetstack/cert-manager-cainjector", certManagerVersion),
+			testing.Img("quay.io/jetstack/cert-manager-webhook", certManagerVersion),
+			// Otherwise kubelet would fail to pull images from DockerHub due too rate limit:
+			//   Warning  Failed     19s                kubelet            Failed to pull image "summerwind/actions-runner-controller:v0.25.2": rpc error: code = Unknown desc = failed to pull and unpack image "docker.io/summerwind/actions-runner-controller:v0.25.2": failed to copy: httpReadSeeker: failed open: unexpected status code https://registry-1.docker.io/v2/summerwind/actions-runner-controller/manifests/sha256:92faf7e9f7f09a6240cdb5eb82eaf448852bdddf2fb77d0a5669fd8e5062b97b: 429 Too Many Requests - Server message: toomanyrequests: You have reached your pull rate limit. You may increase the limit by authenticating and upgrading: https://www.docker.com/increase-rate-limit
+			testing.Img(arcStableImageRepo, arcStableImageTag),
+		}
+
 		e.Kind = testing.StartKind(t, k8sMinorVer, testing.Preload(images...))
-		e.Env.Kubeconfig = e.Kind.Kubeconfig()
+		e.Kubeconfig = e.Kind.Kubeconfig()
 	} else {
-		e.Env.Kubeconfig = e.remoteKubeconfig
+		e.Kubeconfig = e.remoteKubeconfig
 
 		// Kind automatically installs https://github.com/rancher/local-path-provisioner for PVs.
 		// But assuming the remote cluster isn't a kind Kubernetes cluster,
@@ -584,7 +654,7 @@ func (e *env) checkGitHubToken(t *testing.T, tok string) error {
 			t.Logf("%v", ioerr)
 			return err
 		}
-		t.Logf(string(b))
+		t.Log(string(b))
 		return err
 	}
 
@@ -597,7 +667,7 @@ func (e *env) checkGitHubToken(t *testing.T, tok string) error {
 				t.Logf("%v", ioerr)
 				return err
 			}
-			t.Logf(string(b))
+			t.Log(string(b))
 			return err
 		}
 	}
@@ -609,7 +679,7 @@ func (e *env) checkGitHubToken(t *testing.T, tok string) error {
 				t.Logf("%v", ioerr)
 				return err
 			}
-			t.Logf(string(b))
+			t.Log(string(b))
 			return err
 		}
 	}
@@ -623,7 +693,7 @@ func (e *env) checkGitHubToken(t *testing.T, tok string) error {
 				t.Logf("%v", ioerr)
 				return err
 			}
-			t.Logf(string(b))
+			t.Log(string(b))
 			return err
 		}
 	}
@@ -676,8 +746,19 @@ func (e *env) installCertManager(t *testing.T) {
 	e.KubectlWaitUntilDeployAvailable(t, "cert-manager", waitCfg.WithTimeout(60*time.Second))
 }
 
-func (e *env) installActionsRunnerController(t *testing.T, repo, tag, testID, chart, chartVer string) {
+type InstallARCConfig struct {
+	GithubWebhookServerEnvName, GithubWebhookServerEnvValue string
+}
+
+type InstallARCOption func(*InstallARCConfig)
+
+func (e *env) installActionsRunnerController(t *testing.T, repo, tag, testID, chart, chartVer string, opts ...InstallARCOption) {
 	t.Helper()
+
+	var c InstallARCConfig
+	for _, opt := range opts {
+		opt(&c)
+	}
 
 	e.createControllerNamespaceAndServiceAccount(t)
 
@@ -690,11 +771,15 @@ func (e *env) installActionsRunnerController(t *testing.T, repo, tag, testID, ch
 
 	varEnv := []string{
 		"WEBHOOK_GITHUB_TOKEN=" + e.githubTokenWebhook,
+		"CREATE_SECRETS_USING_HELM=" + e.createSecretsUsingHelm,
 		"TEST_ID=" + testID,
 		"NAME=" + repo,
 		"VERSION=" + tag,
+		"ADMISSION_WEBHOOKS_TIMEOUT=" + e.admissionWebhooksTimeout,
 		"IMAGE_PULL_SECRET=" + e.imagePullSecretName,
 		"IMAGE_PULL_POLICY=" + e.imagePullPolicy,
+		"DIND_SIDECAR_REPOSITORY_AND_TAG=" + e.dindSidecarRepositoryAndTag,
+		"WATCH_NAMESPACE=" + e.watchNamespace,
 	}
 
 	if e.useApp {
@@ -716,6 +801,11 @@ func (e *env) installActionsRunnerController(t *testing.T, repo, tag, testID, ch
 			"LOG_FORMAT="+e.logFormat,
 		)
 	}
+
+	varEnv = append(varEnv,
+		"GITHUB_WEBHOOK_SERVER_ENV_NAME="+c.GithubWebhookServerEnvName,
+		"GITHUB_WEBHOOK_SERVER_ENV_VALUE="+c.GithubWebhookServerEnvValue,
+	)
 
 	scriptEnv = append(scriptEnv, varEnv...)
 	scriptEnv = append(scriptEnv, e.vars.commonScriptEnv...)
@@ -887,10 +977,10 @@ func (e *env) testJobs(testID string) []job {
 	return createTestJobs(testID, testResultCMNamePrefix, 6)
 }
 
-func (e *env) verifyActionsWorkflowRun(t *testing.T, testID string) {
+func (e *env) verifyActionsWorkflowRun(t *testing.T, ctx context.Context, testID string) {
 	t.Helper()
 
-	verifyActionsWorkflowRun(t, e.Env, e.testJobs(testID), e.verifyTimeout(), e.getKubectlConfig())
+	verifyActionsWorkflowRun(t, ctx, e.Env, e.testJobs(testID), e.verifyTimeout(), e.getKubectlConfig())
 }
 
 func (e *env) verifyTimeout() time.Duration {
@@ -955,7 +1045,7 @@ func installActionsWorkflow(t *testing.T, testName, runnerLabel, testResultCMNam
 
 	var container string
 	if kubernetesContainerMode {
-		container = "golang:1.18"
+		container = "golang:1.24"
 	}
 
 	for _, j := range testJobs {
@@ -1016,8 +1106,19 @@ func installActionsWorkflow(t *testing.T, testName, runnerLabel, testResultCMNam
 				testing.Step{
 					Uses: "actions/setup-go@v3",
 					With: &testing.With{
-						GoVersion: "1.18.2",
+						GoVersion: "1.25.1",
 					},
+				},
+			)
+
+			// Ensure both the alias and the full command work after
+			// https://github.com/actions/actions-runner-controller/pull/2326
+			steps = append(steps,
+				testing.Step{
+					Run: "docker-compose version",
+				},
+				testing.Step{
+					Run: "docker compose version",
 				},
 			)
 		}
@@ -1035,7 +1136,6 @@ func installActionsWorkflow(t *testing.T, testName, runnerLabel, testResultCMNam
 			if !kubernetesContainerMode {
 				setupBuildXActionWith := &testing.With{
 					BuildkitdFlags: "--debug",
-					Endpoint:       "mycontext",
 					// As the consequence of setting `install: false`, it doesn't install buildx as an alias to `docker build`
 					// so we need to use `docker buildx build` in the next step
 					Install: false,
@@ -1061,25 +1161,44 @@ func installActionsWorkflow(t *testing.T, testName, runnerLabel, testResultCMNam
 					setupBuildXActionWith.Driver = "docker"
 					dockerfile = "Dockerfile.nocache"
 				}
-				steps = append(steps,
-					testing.Step{
+
+				useCustomDockerContext := os.Getenv("ARC_E2E_USE_CUSTOM_DOCKER_CONTEXT") != ""
+				if useCustomDockerContext {
+					setupBuildXActionWith.Endpoint = "mycontext"
+
+					steps = append(steps, testing.Step{
 						// https://github.com/docker/buildx/issues/413#issuecomment-710660155
 						// To prevent setup-buildx-action from failing with:
 						//   error: could not create a builder instance with TLS data loaded from environment. Please use `docker context create <context-name>` to create a context for current environment and then create a builder instance with `docker buildx create <context-name>`
 						Run: "docker context create mycontext",
 					},
-					testing.Step{
-						Run: "docker context use mycontext",
-					},
+						testing.Step{
+							Run: "docker context use mycontext",
+						},
+					)
+				}
+
+				steps = append(steps,
 					testing.Step{
 						Name: "Set up Docker Buildx",
-						Uses: "docker/setup-buildx-action@v1",
+						Uses: "docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2",
 						With: setupBuildXActionWith,
 					},
 					testing.Step{
-						Run: "docker buildx build --platform=linux/amd64 " +
+						Run: "docker buildx build --platform=linux/amd64 -t test1 --load " +
 							dockerBuildCache +
 							fmt.Sprintf("-f %s .", dockerfile),
+					},
+					testing.Step{
+						Run: "docker run --rm test1",
+					},
+					testing.Step{
+						Uses: "addnab/docker-run-action@4f65fabd2431ebc8d299f8e5a018d79a769ae185",
+						With: &testing.With{
+							Image: "test1",
+							Run:   "hello",
+							Shell: "sh",
+						},
 					},
 				)
 
@@ -1115,9 +1234,9 @@ func installActionsWorkflow(t *testing.T, testName, runnerLabel, testResultCMNam
 
 		steps = append(steps,
 			testing.Step{
-				Uses: "azure/setup-kubectl@v1",
+				Uses: "azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f",
 				With: &testing.With{
-					Version: "v1.20.2",
+					Version: "v1.24.0",
 				},
 			},
 			testing.Step{
@@ -1162,7 +1281,7 @@ kubectl create cm %s$id --from-literal=status=ok
 	}
 }
 
-func verifyActionsWorkflowRun(t *testing.T, env *testing.Env, testJobs []job, timeout time.Duration, cmCfg testing.KubectlConfig) {
+func verifyActionsWorkflowRun(t *testing.T, ctx context.Context, env *testing.Env, testJobs []job, timeout time.Duration, cmCfg testing.KubectlConfig) {
 	t.Helper()
 
 	var expected []string
@@ -1171,7 +1290,7 @@ func verifyActionsWorkflowRun(t *testing.T, env *testing.Env, testJobs []job, ti
 		expected = append(expected, "ok")
 	}
 
-	gomega.NewGomegaWithT(t).Eventually(func() ([]string, error) {
+	gomega.NewGomegaWithT(t).Eventually(ctx, func() ([]string, error) {
 		var results []string
 
 		var errs []error

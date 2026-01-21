@@ -17,12 +17,16 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"context"
+	"fmt"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 // log is for logging in this package.
@@ -31,37 +35,52 @@ var runnerDeploymentLog = logf.Log.WithName("runnerdeployment-resource")
 func (r *RunnerDeployment) SetupWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(r).
+		WithDefaulter(&RunnerDeploymentDefaulter{}).
+		WithValidator(&RunnerDeploymentValidator{}).
 		Complete()
 }
 
 // +kubebuilder:webhook:path=/mutate-actions-summerwind-dev-v1alpha1-runnerdeployment,verbs=create;update,mutating=true,failurePolicy=fail,groups=actions.summerwind.dev,resources=runnerdeployments,versions=v1alpha1,name=mutate.runnerdeployment.actions.summerwind.dev,sideEffects=None,admissionReviewVersions=v1beta1
 
-var _ webhook.Defaulter = &RunnerDeployment{}
+var _ webhook.CustomDefaulter = &RunnerDeploymentDefaulter{}
+
+type RunnerDeploymentDefaulter struct{}
 
 // Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *RunnerDeployment) Default() {
+func (*RunnerDeploymentDefaulter) Default(context.Context, runtime.Object) error {
 	// Nothing to do.
+	return nil
 }
 
 // +kubebuilder:webhook:path=/validate-actions-summerwind-dev-v1alpha1-runnerdeployment,verbs=create;update,mutating=false,failurePolicy=fail,groups=actions.summerwind.dev,resources=runnerdeployments,versions=v1alpha1,name=validate.runnerdeployment.actions.summerwind.dev,sideEffects=None,admissionReviewVersions=v1beta1
 
-var _ webhook.Validator = &RunnerDeployment{}
+var _ webhook.CustomValidator = &RunnerDeploymentValidator{}
+
+type RunnerDeploymentValidator struct{}
 
 // ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *RunnerDeployment) ValidateCreate() error {
+func (*RunnerDeploymentValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	r, ok := obj.(*RunnerDeployment)
+	if !ok {
+		return nil, fmt.Errorf("expected RunnerDeployment object, got %T", obj)
+	}
 	runnerDeploymentLog.Info("validate resource to be created", "name", r.Name)
-	return r.Validate()
+	return nil, r.Validate()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *RunnerDeployment) ValidateUpdate(old runtime.Object) error {
+func (*RunnerDeploymentValidator) ValidateUpdate(ctx context.Context, old, obj runtime.Object) (admission.Warnings, error) {
+	r, ok := obj.(*RunnerDeployment)
+	if !ok {
+		return nil, fmt.Errorf("expected RunnerDeployment object, got %T", obj)
+	}
 	runnerDeploymentLog.Info("validate resource to be updated", "name", r.Name)
-	return r.Validate()
+	return nil, r.Validate()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *RunnerDeployment) ValidateDelete() error {
-	return nil
+func (*RunnerDeploymentValidator) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+	return nil, nil
 }
 
 // Validate validates resource spec.
